@@ -1,0 +1,15 @@
+generator client {
+  provider = "cargo prisma"
+  output = "../src/prisma.rs"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root@localhost:3306/authentication"
+}
+
+model User {
+    id          String  @id @default(cuid())
+    username    String  @unique
+    password    String
+}
