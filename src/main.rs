@@ -113,8 +113,22 @@ async fn logout(cookies: &CookieJar<'_>) -> Status {
     }
 }
 
+#[derive(Responder)]
+enum RegistrationResponse {
+    #[response(status = 201)]
+    Created(Json<User>),
+    #[response(status = 409)]
+    Conflict(String),
+    #[response(status = 401)]
+    Unauthorised(String),
+}
+
 #[post("/register", data = "<credentials>")]
-async fn register(ctx: &Ctx, credentials: Json<Credentials>) -> Status {
+async fn register(ctx: &Ctx, cookies: &CookieJar<'_>, credentials: Json<Credentials>) -> RegistrationResponse {
+    if let Some(_) = cookies.get_private("uid") {
+        return RegistrationResponse::Unauthorised("Already Authenticated".to_string());
+    }
+
     let check_username_available: Option<user::Data> = ctx
         .db
         .user()
@@ -124,7 +138,7 @@ async fn register(ctx: &Ctx, credentials: Json<Credentials>) -> Status {
         .unwrap();
 
     match check_username_available {
-        Some(_user) => Status::Conflict,
+        Some(_user) => RegistrationResponse::Conflict("Username is taken".to_string()),
         None => {
             let salt = SaltString::generate(&mut OsRng);
             let argon2 = Argon2::default();
@@ -134,13 +148,18 @@ async fn register(ctx: &Ctx, credentials: Json<Credentials>) -> Status {
                 .unwrap()
                 .to_string();
 
-            let _new_user = ctx
+            let new_user = ctx
                 .db
                 .user()
                 .create(credentials.username.trim().to_lowercase().to_owned(), password_hash, vec![])
                 .exec()
-                .await;
-            Status::Created
+                .await
+                .unwrap();
+
+            RegistrationResponse::Created(Json(User {
+                id: new_user.clone().id,
+                username: new_user.username,
+            }))
         }
     }
 }
