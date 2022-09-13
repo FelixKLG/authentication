@@ -118,15 +118,15 @@ enum RegistrationResponse {
     #[response(status = 201)]
     Created(Json<User>),
     #[response(status = 409)]
-    Conflict(String),
+    Conflict(Status),
     #[response(status = 401)]
-    Unauthorised(String),
+    Unauthorised(Status),
 }
 
 #[post("/register", data = "<credentials>")]
 async fn register(ctx: &Ctx, cookies: &CookieJar<'_>, credentials: Json<Credentials>) -> RegistrationResponse {
     if let Some(_) = cookies.get_private("uid") {
-        return RegistrationResponse::Unauthorised("Already Authenticated".to_string());
+        return RegistrationResponse::Unauthorised(Status::Unauthorized);
     }
 
     let check_username_available: Option<user::Data> = ctx
@@ -138,7 +138,7 @@ async fn register(ctx: &Ctx, cookies: &CookieJar<'_>, credentials: Json<Credenti
         .unwrap();
 
     match check_username_available {
-        Some(_user) => RegistrationResponse::Conflict("Username is taken".to_string()),
+        Some(_user) => RegistrationResponse::Conflict(Status::Conflict),
         None => {
             let salt = SaltString::generate(&mut OsRng);
             let argon2 = Argon2::default();
